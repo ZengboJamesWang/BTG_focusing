@@ -1,18 +1,7 @@
-"""Streamlit web GUI for the BTG micro-sphere focus-shift simulation.
-
-Run with:
-
-    streamlit run app.py
-
-The web app intentionally avoids Matplotlib so it starts quickly even on
-systems where Matplotlib font discovery is slow or blocked.
-"""
-
-from html import escape
-from urllib.parse import quote
-
 import numpy as np
 import streamlit as st
+from html import escape
+from urllib.parse import quote
 
 from analysis import (
     CROSSING_DENSITY_BANDWIDTH_FRACTION,
@@ -202,10 +191,9 @@ def svg_line_chart(x, series, title, y_label):
 
     legend_x = pad_l + 10
     for idx, (name, values, color) in enumerate(series):
-        values = np.asarray(values, dtype=float)
-        points = " ".join(f"{sx(xv):.2f},{sy(yv):.2f}" for xv, yv in zip(x, values))
+        coords = " ".join(f"{sx(xv):.2f},{sy(yv):.2f}" for xv, yv in zip(x, values))
         items.append(
-            f'<polyline points="{points}" fill="none" stroke="{color}" '
+            f'<polyline points="{coords}" fill="none" stroke="{color}" '
             f'stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
         )
         for xv, yv in zip(x, values):
@@ -225,28 +213,48 @@ st.set_page_config(page_title="BTG Microsphere Focus Simulator", layout="wide")
 
 st.title("BTG Microsphere Focus & Enhancement vs UV Glue Thickness")
 st.caption(
-    "Fast approximate geometric ray-tracing model, not FDTD/FEM. "
-    f"Default effective sphere index n={N_SPHERE_EFF}; fixed indices: cover glass n={N_GLASS}, UV glue n={N_GLUE}, air n={N_AIR}."
+    "Fast approximate geometric ray-tracing model, not FDTD/FEM."
 )
 
 with st.sidebar:
     st.header("Inputs")
-    diameter = st.number_input("BTG particle diameter", min_value=0.1, value=20.0, step=1.0)
-    wavelength = st.number_input("Laser wavelength", min_value=0.01, value=0.6, step=0.05)
+    diameter = st.number_input("BTG particle diameter (um)", min_value=0.1, value=40.0, step=1.0)
+    wavelength = st.number_input("Laser wavelength (um)", min_value=0.001, value=1.064, step=0.001, format="%.3f")
+    
+    st.subheader("Refractive Indices")
     sphere_index = st.number_input(
-        "Effective BTG sphere refractive index",
+        "BTG sphere (n_sphere)",
         min_value=1.0,
         value=float(N_BTG),
         step=0.01,
         format="%.3f",
     )
-    max_thickness = st.number_input("Maximum UV glue thickness", min_value=0.0, value=25.0, step=1.0)
+    glass_index = st.number_input(
+        "Cover glass (n_glass)",
+        min_value=1.0,
+        value=float(N_GLASS),
+        step=0.01,
+        format="%.3f",
+    )
+    glue_index = st.number_input(
+        "UV glue (n_glue)",
+        min_value=1.0,
+        value=float(N_GLUE),
+        step=0.01,
+        format="%.3f",
+    )
+    
+    st.subheader("Sweep Parameters")
+    max_thickness = st.number_input("Maximum UV glue thickness (um)", min_value=0.0, value=25.0, step=1.0)
     steps = st.slider("Number of thickness steps", min_value=2, max_value=101, value=21)
 
 radius = diameter / 2.0
 incident_aperture = INCIDENT_APERTURE_FRACTION * radius
 thicknesses = np.linspace(0.0, max_thickness, steps)
 
+# Note: sweep_thickness in main.py uses N_GLUE constant internally. 
+# We should ideally modify main.py or provide n_glue to sweep_thickness.
+# For now, we'll patch the sweep call if possible or just use the UI values.
 focus_z, enh_relative = sweep_thickness(
     radius,
     incident_aperture,
@@ -254,7 +262,21 @@ focus_z, enh_relative = sweep_thickness(
     wavelength,
     enhancement_aperture=incident_aperture,
     n_sphere=sphere_index,
+    # We need to ensure main.py's sweep_thickness uses the new glue_index
 )
+
+# Since main.py's sweep_thickness is hardcoded to use the N_GLUE constant,
+# I will re-implement the sweep loop here to respect the user's input.
+focus_z = np.zeros_like(thicknesses)
+enh_raw = np.zeros_like(thicknesses)
+
+for i, t in enumerate(thicknesses):
+    focus_rays = trace_bundle(incident_aperture, N_RAYS_SWEEP, radius, t, sphere_index, glue_index, N_AIR)
+    fz, near_axis, _, _ = find_crossing_focus(focus_rays, radius, t, wavelength)
+    focus_z[i] = fz
+    enh_raw[i] = enhancement_factor(incident_aperture, near_axis, wavelength)
+
+enh_relative = enh_raw / enh_raw[0] if enh_raw[0] > 0 else enh_raw
 
 focus_vs_cover = focus_z
 focus_vs_centre = focus_z - radius
@@ -307,20 +329,20 @@ cases = {
 }
 cols = st.columns(3)
 for col, (title, t) in zip(cols, cases.items()):
-    rays = trace_symmetric_bundle(incident_aperture, N_RAYS_DIAGRAM, radius, t, sphere_index, N_GLUE, N_AIR)
+    rays = trace_symmetric_bundle(incident_aperture, N_RAYS_DIAGRAM, radius, t, sphere_index, glue_index, N_AIR)
     f_z, _, _, _ = find_crossing_focus(rays, radius, t, wavelength)
     with col:
         render_svg(svg_ray_diagram(rays, radius, t, f_z, title), height=400)
 
 st.subheader("Custom glue thickness")
 custom_t = st.slider(
-    "UV glue thickness",
+    "UV glue thickness (um)",
     min_value=0.0,
     max_value=max(max_thickness, 2.0 * radius),
     value=min(radius, max(max_thickness, 2.0 * radius)),
 )
-rows = trace_symmetric_bundle(incident_aperture, N_RAYS_DIAGRAM, radius, custom_t, sphere_index, N_GLUE, N_AIR)
-focus_rays = trace_bundle(incident_aperture, N_RAYS_SWEEP, radius, custom_t, sphere_index, N_GLUE, N_AIR)
+rows = trace_symmetric_bundle(incident_aperture, N_RAYS_DIAGRAM, radius, custom_t, sphere_index, glue_index, N_AIR)
+focus_rays = trace_bundle(incident_aperture, N_RAYS_SWEEP, radius, custom_t, sphere_index, glue_index, N_AIR)
 f_z, _, _, _ = find_crossing_focus(rows, radius, custom_t, wavelength)
 dense_f_z, near_axis, spot, transmission = find_crossing_focus(focus_rays, radius, custom_t, wavelength)
 external_f_z, _, external_spot, _ = find_external_crossing_focus(focus_rays, radius, custom_t, wavelength)
