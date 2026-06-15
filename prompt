@@ -1,0 +1,47 @@
+
+
+Please write a simple Python program to estimate how the focus position and relative enhancement factor of a BTG microsphere change with UV glue coating thickness.
+
+Use a fast approximate ray-tracing method, not FDTD or FEM.
+
+The user should only need to input:
+
+1. BTG particle diameter
+2. Laser wavelength
+3. Maximum UV glue thickness
+4. Number of thickness steps
+
+All other parameters should be automatically set by the program:
+
+* BTG refractive index = 1.9
+* Cover glass refractive index = 1.46
+* UV glue refractive index = 1.46
+* Air refractive index = 1.0
+* Plane-wave illumination from bottom to top
+* BTG particle fixed on top of the cover glass
+* UV glue gradually embeds the particle
+* Number of rays automatically chosen
+* Ray aperture automatically chosen from the particle diameter
+* Plot range and sampling resolution automatically chosen
+
+The program should calculate and plot:
+
+1. Focus position versus UV glue thickness
+2. Relative enhancement factor versus UV glue thickness
+3. Ray-tracing diagrams for three cases:
+
+   * no glue coating
+   * half-embedded particle
+   * fully embedded particle
+
+The focus position should be reported relative to:
+
+* cover glass top surface
+* particle centre
+* particle top surface
+
+The enhancement factor can be estimated qualitatively from ray concentration near the focus. It does not need to be an exact Maxwell-field enhancement.
+
+Please keep the code simple, modular, and easy to modify later.
+
+The main aim is to see the trend of focus shift and enhancement change when the UV glue thickness increases.

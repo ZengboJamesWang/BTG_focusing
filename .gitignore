@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*.pyo
+
+.venv/
+venv/
+env/
+
+.DS_Store
+
+focus_vs_thickness.png
+enhancement_vs_thickness.png
+ray_diagrams.png
+
+.pytest_cache/
+.mypy_cache/
