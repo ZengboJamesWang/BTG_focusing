@@ -38,7 +38,31 @@ from ray_trace import trace_bundle, trace_symmetric_bundle
 
 
 def render_svg(svg, height):
-    st.iframe(f"data:text/html;charset=utf-8,{quote(svg)}", height=height)
+    # Cross-browser compatible scaling (Fixes Chrome clipping issues)
+    html_content = f"""
+    <style>
+        html, body {{ 
+            margin: 0; 
+            padding: 0; 
+            height: 100%; 
+            width: 100%; 
+            overflow: hidden; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: transparent;
+        }}
+        svg {{ 
+            max-width: 100%; 
+            max-height: 100%; 
+            width: auto; 
+            height: auto;
+            display: block;
+        }}
+    </style>
+    {svg}
+    """
+    st.components.v1.html(html_content, height=height)
 
 
 def svg_ray_diagram(rays, radius, glue_thickness, focus_z, title):
@@ -120,7 +144,7 @@ def svg_ray_diagram(rays, radius, glue_thickness, focus_z, title):
         f'<text x="{sx(focus_z) + 5:.2f}" y="{pad_t + 16}" '
         f'font-size="11" font-family="sans-serif" fill="#1a8f3a">focus z={focus_z:.2f}</text>'
     )
-    return f'<svg viewBox="0 0 {width} {height}" width="100%" role="img">{"".join(items)}</svg>'
+    return f'<svg viewBox="0 0 {width} {height}" preserveAspectRatio="xMidYMid meet" role="img">{"".join(items)}</svg>'
 
 
 def svg_line_chart(x, series, title, y_label):
@@ -163,7 +187,7 @@ def svg_line_chart(x, series, title, y_label):
         )
 
     items = [
-        f'<svg viewBox="0 0 {width} {height}" width="100%" role="img">',
+        f'<svg viewBox="0 0 {width} {height}" preserveAspectRatio="xMidYMid meet" role="img">',
         f'<rect x="0" y="0" width="{width}" height="{height}" fill="#ffffff"/>',
         f'<text x="{width / 2:.1f}" y="20" text-anchor="middle" '
         f'font-size="15" font-family="sans-serif">{escape(title)}</text>',
